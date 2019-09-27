@@ -5,6 +5,7 @@
 #include <Windows.h>
 #include <Ole2.h>
 #include <stdio.h>
+#include <tchar.h>
 
 void read_storage(LPSTORAGE pstg)
 {
@@ -25,7 +26,7 @@ void read_storage(LPSTORAGE pstg)
 		{
 			hr = pstg->OpenStorage(statstg.pwcsName,
 				NULL,
-				STGM_READ | STGM_SHARE_EXCLUSIVE,
+				STGM_READWRITE | STGM_SHARE_EXCLUSIVE,
 				NULL,
 				0,
 				&psubstg);
@@ -39,14 +40,32 @@ void read_storage(LPSTORAGE pstg)
 		{
 			hr = pstg->OpenStream(statstg.pwcsName,
 				NULL,
-				STGM_READ | STGM_SHARE_EXCLUSIVE,
+				STGM_READWRITE | STGM_SHARE_EXCLUSIVE,
 				0,
 				&pstream);
 			if (hr == S_OK)
 			{
-				printf("%S size: %lld\n", statstg.pwcsName,
-					statstg.cbSize.QuadPart);
+				// Let InstallShield produce this error: "Error extracting support
+				// files: Catastrophic failure"
+				if (_tcsicmp(L"StrIndex_hkStream", statstg.pwcsName) == 0 ||
+					_tcsicmp(L"ID_6_SEQ_PROPERTIES", statstg.pwcsName) == 0 ||
+					_tcsicmp(L"ID_5_SEQ_PROPERTIES", statstg.pwcsName) == 0 ||
+					_tcsicmp(L"ID_3_SEQ_PROPERTIES", statstg.pwcsName) == 0 ||
+					_tcsicmp(L"ID_2_SEQ_PROPERTIES", statstg.pwcsName) == 0 ||
+					_tcsicmp(L"ID_1_SEQ_PROPERTIES", statstg.pwcsName) == 0 ||
+					_tcsicmp(L"FEATURELOG_STDPROPS", statstg.pwcsName) == 0
+					)
+				{
+					printf("%S size: %lld\n", statstg.pwcsName,
+						statstg.cbSize.QuadPart);
+
+					ULARGE_INTEGER ui = { 0 };
+					pstream->SetSize(ui);
+					hr = pstream->Commit(statstg.grfStateBits);
+				}
 			}
+
+			pstream->Release();
 		}
 
 		CoTaskMemFree(statstg.pwcsName);
@@ -62,7 +81,7 @@ int main()
 	TCHAR file_name[] = L"setup.ilg";
 
 	hr = StgOpenStorageEx(file_name,
-		STGM_READ | STGM_SHARE_DENY_WRITE,
+		STGM_READWRITE | STGM_SHARE_DENY_WRITE,
 		STGFMT_ANY,
 		0,
 		NULL,
